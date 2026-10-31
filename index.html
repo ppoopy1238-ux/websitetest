@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Home</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --text: #1d2330;
+      --muted: #5b6475;
+      --accent: #2f6fed;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #14171f;
+        --text: #eef0f5;
+        --muted: #9aa3b5;
+        --accent: #6c9bff;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: 3rem 1.5rem;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      text-align: center;
+    }
+    main { max-width: 40rem; margin: 0 auto; }
+    h1 { font-size: 2rem; margin: 0 0 0.5rem; }
+    p { color: var(--muted); margin: 0 0 1.5rem; }
+    #buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      justify-content: center;
+    }
+    button {
+      font: inherit;
+      font-weight: 600;
+      background: var(--accent);
+      color: #fff;
+      border: 0;
+      border-radius: 8px;
+      padding: 0.8rem 1.5rem;
+      cursor: pointer;
+    }
+    button:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+    #status { margin-top: 1.25rem; min-height: 1.5rem; font-size: 0.95rem; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Home</h1>
+    <p>Pick a page to open in a new about:blank tab.</p>
+    <div id="buttons"></div>
+    <div id="status" role="status">Loading…</div>
+  </main>
+
+  <script>
+    // Only needed if you use a custom domain. Otherwise these are detected automatically.
+    var OWNER = "";
+    var REPO = "";
+
+    // Used only if GitHub's file list can't be loaded (for example, rate limits).
+    // Add filenames here as a backup, like: ["classroommaxxing.html", "other.html"]
+    var FALLBACK = ["classroommaxxing.html"];
+
+    // Files that never get a button.
+    var HIDDEN = ["index.html", "404.html"];
+
+    var buttonsEl = document.getElementById("buttons");
+    var statusEl = document.getElementById("status");
+
+    if (!OWNER) OWNER = location.hostname.split(".")[0];
+    if (!REPO) REPO = location.pathname.split("/")[1] || (OWNER + ".github.io");
+
+    function prettyName(file) {
+      return file.replace(/\.html$/i, "").replace(/[-_]+/g, " ");
+    }
+
+    function openFile(file) {
+      var win = window.open("about:blank", "_blank");
+      if (!win) {
+        statusEl.textContent = "The tab was blocked. Allow pop-ups for this site and try again.";
+        return;
+      }
+      // about:blank has no base URL, so the iframe needs a full address.
+      var url = new URL(encodeURI(file), location.href).href;
+
+      win.document.title = prettyName(file);
+      win.document.body.style.cssText = "margin:0;height:100vh;overflow:hidden;";
+
+      var frame = win.document.createElement("iframe");
+      frame.src = url;
+      frame.setAttribute("allowfullscreen", "");
+      frame.setAttribute("allow", "fullscreen; autoplay; gamepad");
+      frame.style.cssText = "border:0;width:100%;height:100%;";
+      win.document.body.appendChild(frame);
+    }
+
+    function showButtons(files) {
+      buttonsEl.textContent = "";
+      files.forEach(function (file) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.textContent = prettyName(file);
+        b.addEventListener("click", function () { openFile(file); });
+        buttonsEl.appendChild(b);
+      });
+      statusEl.textContent = files.length ? "" : "No pages found yet. Upload an .html file to the repo.";
+    }
+
+    function isPage(name) {
+      return /\.html$/i.test(name) && HIDDEN.indexOf(name.toLowerCase()) === -1;
+    }
+
+    fetch("https://api.github.com/repos/" + OWNER + "/" + REPO + "/contents/")
+      .then(function (r) {
+        if (!r.ok) throw new Error("GitHub returned " + r.status);
+        return r.json();
+      })
+      .then(function (items) {
+        var files = items
+          .filter(function (i) { return i.type === "file" && isPage(i.name); })
+          .map(function (i) { return i.name; })
+          .sort(function (a, b) { return a.localeCompare(b); });
+        showButtons(files);
+      })
+      .catch(function () {
+        showButtons(FALLBACK.filter(isPage));
+        statusEl.textContent = "Couldn’t load the full file list, so showing the backup list.";
+      });
+  </script>
+</body>
+</html>
